@@ -1,0 +1,59 @@
+# Core AI and Agent Framework
+pydantic-ai==0.4.7
+pydantic==2.11.7
+openai==1.97.1
+
+# Web Framework and API
+fastapi==0.116.1
+uvicorn[standard]==0.32.1
+streamlit==1.40.2
+
+# Database and Vector Search
+asyncpg==0.30.0
+psycopg2-binary==2.9.10
+pgvector==0.3.6
+
+# Knowledge Graph
+neo4j==5.27.0
+graphiti-core==0.3.8
+
+# HTTP and Async
+httpx==0.28.1
+aiohttp==3.11.10
+aiofiles==24.1.0
+
+# Environment and Configuration
+python-dotenv==1.0.1
+pydantic-settings==2.7.0
+
+# Document Processing
+markdown==3.7
+pypdf==5.1.0
+python-multipart==0.0.17
+
+# Data Processing
+numpy==2.2.0
+pandas==2.2.3
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+
+# Code Quality
+black==24.10.0
+ruff==0.8.4
+mypy==1.13.0
+
+# Logging and Monitoring
+structlog==24.4.0
+rich==13.9.4
+
+# Date and Time
+python-dateutil==2.9.0.post0
+
+# Additional utilities
+click==8.1.8
+typer==0.15.1
+requests==2.32.3

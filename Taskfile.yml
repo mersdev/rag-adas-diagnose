@@ -1,0 +1,324 @@
+version: '3'
+
+vars:
+  POSTGRES_IMAGE: pgvector/pgvector:pg15
+  NEO4J_IMAGE: neo4j:5.15
+  POSTGRES_CONTAINER: adas-postgres
+  NEO4J_CONTAINER: adas-neo4j
+  NETWORK_NAME: adas-network
+  
+  # Database Configuration
+  POSTGRES_DB: adas_diagnostics
+  POSTGRES_USER: adas_user
+  POSTGRES_PASSWORD: adas_password
+  POSTGRES_PORT: 5434
+  NEO4J_USER: neo4j
+  NEO4J_PASSWORD: adas_neo4j_password
+  NEO4J_PORT: 7474
+
+tasks:
+  # Container Management
+  setup:
+    desc: "Set up the complete ADAS Diagnostics environment"
+    cmds:
+      - task: network:create
+      - task: volumes:create
+      - task: containers:start
+      - task: db:wait
+      - task: db:init
+    
+  cleanup:
+    desc: "Clean up all containers, volumes, and networks"
+    cmds:
+      - task: containers:stop
+      - task: containers:remove
+      - task: volumes:remove
+      - task: network:remove
+
+  # Network Management
+  network:create:
+    desc: "Create Podman network for ADAS services"
+    cmds:
+      - podman network create {{.NETWORK_NAME}} || true
+    status:
+      - podman network exists {{.NETWORK_NAME}}
+
+  network:remove:
+    desc: "Remove Podman network"
+    cmds:
+      - podman network rm {{.NETWORK_NAME}} || true
+
+  # Volume Management
+  volumes:create:
+    desc: "Create persistent volumes for databases"
+    cmds:
+      - podman volume create adas-postgres-data || true
+      - podman volume create adas-neo4j-data || true
+      - podman volume create adas-neo4j-logs || true
+      - podman volume create adas-neo4j-import || true
+      - podman volume create adas-neo4j-plugins || true
+
+  volumes:remove:
+    desc: "Remove all persistent volumes (WARNING: This will delete all data)"
+    cmds:
+      - podman volume rm adas-postgres-data || true
+      - podman volume rm adas-neo4j-data || true
+      - podman volume rm adas-neo4j-logs || true
+      - podman volume rm adas-neo4j-import || true
+      - podman volume rm adas-neo4j-plugins || true
+
+  # Container Management
+  containers:start:
+    desc: "Start PostgreSQL and Neo4j containers"
+    deps: [network:create, volumes:create]
+    cmds:
+      - task: postgres:start
+      - task: neo4j:start
+
+  containers:stop:
+    desc: "Stop all containers"
+    cmds:
+      - podman stop {{.POSTGRES_CONTAINER}} || true
+      - podman stop {{.NEO4J_CONTAINER}} || true
+
+  containers:remove:
+    desc: "Remove all containers"
+    deps: [containers:stop]
+    cmds:
+      - podman rm {{.POSTGRES_CONTAINER}} || true
+      - podman rm {{.NEO4J_CONTAINER}} || true
+
+  containers:restart:
+    desc: "Restart all containers"
+    cmds:
+      - task: containers:stop
+      - task: containers:start
+
+  # PostgreSQL Management
+  postgres:start:
+    desc: "Start PostgreSQL container with pgvector"
+    cmds:
+      - |
+        podman run -d \
+          --name {{.POSTGRES_CONTAINER}} \
+          --network {{.NETWORK_NAME}} \
+          -p {{.POSTGRES_PORT}}:5432 \
+          -e POSTGRES_DB={{.POSTGRES_DB}} \
+          -e POSTGRES_USER={{.POSTGRES_USER}} \
+          -e POSTGRES_PASSWORD={{.POSTGRES_PASSWORD}} \
+          -e POSTGRES_INITDB_ARGS="--encoding=UTF-8" \
+          -v adas-postgres-data:/var/lib/postgresql/data \
+          -v ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro \
+          --restart unless-stopped \
+          {{.POSTGRES_IMAGE}}
+    status:
+      - podman container exists {{.POSTGRES_CONTAINER}}
+
+  postgres:stop:
+    desc: "Stop PostgreSQL container"
+    cmds:
+      - podman stop {{.POSTGRES_CONTAINER}} || true
+
+  postgres:logs:
+    desc: "Show PostgreSQL logs"
+    cmds:
+      - podman logs {{.POSTGRES_CONTAINER}}
+
+  postgres:shell:
+    desc: "Connect to PostgreSQL shell"
+    cmds:
+      - podman exec -it {{.POSTGRES_CONTAINER}} psql -U {{.POSTGRES_USER}} -d {{.POSTGRES_DB}}
+
+  # Neo4j Management
+  neo4j:start:
+    desc: "Start Neo4j container"
+    cmds:
+      - |
+        podman run -d \
+          --name {{.NEO4J_CONTAINER}} \
+          --network {{.NETWORK_NAME}} \
+          -p {{.NEO4J_PORT}}:7474 \
+          -p 7687:7687 \
+          -e NEO4J_AUTH={{.NEO4J_USER}}/{{.NEO4J_PASSWORD}} \
+          -e NEO4J_PLUGINS='["apoc", "graph-data-science"]' \
+          -e NEO4J_apoc_export_file_enabled=true \
+          -e NEO4J_apoc_import_file_enabled=true \
+          -e NEO4J_apoc_import_file_use__neo4j__config=true \
+          -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes \
+          -e NEO4J_dbms_security_procedures_unrestricted=apoc.*,gds.* \
+          -e NEO4J_dbms_security_procedures_allowlist=apoc.*,gds.* \
+          -e NEO4J_dbms_memory_heap_initial__size=512m \
+          -e NEO4J_dbms_memory_heap_max__size=2G \
+          -e NEO4J_dbms_memory_pagecache_size=1G \
+          -v adas-neo4j-data:/data \
+          -v adas-neo4j-logs:/logs \
+          -v adas-neo4j-import:/var/lib/neo4j/import \
+          -v adas-neo4j-plugins:/plugins \
+          --restart unless-stopped \
+          {{.NEO4J_IMAGE}}
+    status:
+      - podman container exists {{.NEO4J_CONTAINER}}
+
+  neo4j:stop:
+    desc: "Stop Neo4j container"
+    cmds:
+      - podman stop {{.NEO4J_CONTAINER}} || true
+
+  neo4j:logs:
+    desc: "Show Neo4j logs"
+    cmds:
+      - podman logs {{.NEO4J_CONTAINER}}
+
+  neo4j:shell:
+    desc: "Connect to Neo4j shell"
+    cmds:
+      - podman exec -it {{.NEO4J_CONTAINER}} cypher-shell -u {{.NEO4J_USER}} -p {{.NEO4J_PASSWORD}}
+
+  # Database Operations
+  db:wait:
+    desc: "Wait for databases to be ready"
+    cmds:
+      - task: postgres:wait
+      - task: neo4j:wait
+
+  postgres:wait:
+    desc: "Wait for PostgreSQL to be ready"
+    cmds:
+      - |
+        echo "Waiting for PostgreSQL to be ready..."
+        for i in {1..30}; do
+          if podman exec {{.POSTGRES_CONTAINER}} pg_isready -U {{.POSTGRES_USER}} -d {{.POSTGRES_DB}} > /dev/null 2>&1; then
+            echo "PostgreSQL is ready!"
+            exit 0
+          fi
+          echo "Waiting... ($i/30)"
+          sleep 2
+        done
+        echo "PostgreSQL failed to start within timeout"
+        exit 1
+
+  neo4j:wait:
+    desc: "Wait for Neo4j to be ready"
+    cmds:
+      - |
+        echo "Waiting for Neo4j to be ready..."
+        for i in {1..30}; do
+          if podman exec {{.NEO4J_CONTAINER}} cypher-shell -u {{.NEO4J_USER}} -p {{.NEO4J_PASSWORD}} "RETURN 1" > /dev/null 2>&1; then
+            echo "Neo4j is ready!"
+            exit 0
+          fi
+          echo "Waiting... ($i/30)"
+          sleep 2
+        done
+        echo "Neo4j failed to start within timeout"
+        exit 1
+
+  db:init:
+    desc: "Initialize databases with schema"
+    deps: [db:wait]
+    cmds:
+      - echo "Database initialization completed via init.sql"
+      - echo "PostgreSQL schema loaded automatically"
+      - echo "Neo4j indexes will be created on first agent startup"
+
+  # Health Checks
+  health:
+    desc: "Check health of all services"
+    cmds:
+      - task: postgres:health
+      - task: neo4j:health
+
+  postgres:health:
+    desc: "Check PostgreSQL health"
+    cmds:
+      - |
+        if podman exec {{.POSTGRES_CONTAINER}} pg_isready -U {{.POSTGRES_USER}} -d {{.POSTGRES_DB}}; then
+          echo "✅ PostgreSQL is healthy"
+        else
+          echo "❌ PostgreSQL is not responding"
+          exit 1
+        fi
+
+  neo4j:health:
+    desc: "Check Neo4j health"
+    cmds:
+      - |
+        if podman exec {{.NEO4J_CONTAINER}} cypher-shell -u {{.NEO4J_USER}} -p {{.NEO4J_PASSWORD}} "RETURN 1" > /dev/null 2>&1; then
+          echo "✅ Neo4j is healthy"
+        else
+          echo "❌ Neo4j is not responding"
+          exit 1
+        fi
+
+  # Development Tasks
+  dev:setup:
+    desc: "Set up development environment"
+    cmds:
+      - task: setup
+      - echo "Installing Python dependencies..."
+      - pip install -r requirements.txt
+      - echo "Development environment ready!"
+
+  dev:reset:
+    desc: "Reset development environment (removes all data)"
+    cmds:
+      - task: cleanup
+      - task: setup
+
+  # Application Tasks
+  app:api:
+    desc: "Run the FastAPI backend server"
+    deps: [db:wait]
+    cmds:
+      - source venv/bin/activate && python -m agent.api
+
+  app:frontend:
+    desc: "Run the Streamlit frontend"
+    cmds:
+      - source venv/bin/activate && streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+
+  app:start:
+    desc: "Start the ADAS Diagnostics application (both API and frontend)"
+    deps: [db:wait]
+    cmds:
+      - echo "Starting FastAPI backend..."
+      - source venv/bin/activate && python -m agent.api &
+      - echo "Starting Streamlit frontend..."
+      - source venv/bin/activate && streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+
+  app:test:
+    desc: "Run application tests"
+    cmds:
+      - pytest tests/ -v
+
+  # Ingestion Tasks
+  ingest:file:
+    desc: "Ingest a single file"
+    deps: [db:wait]
+    cmds:
+      - python -m ingestion.ingest process-file-cmd {{.CLI_ARGS}}
+
+  ingest:directory:
+    desc: "Ingest all files in a directory"
+    deps: [db:wait]
+    cmds:
+      - python -m ingestion.ingest process-directory-cmd {{.CLI_ARGS}}
+
+  ingest:sample:
+    desc: "Ingest sample automotive documents"
+    deps: [db:wait]
+    cmds:
+      - source venv/bin/activate && python -m ingestion.ingest sample-data
+
+  # Utility Tasks
+  logs:
+    desc: "Show logs from all containers"
+    cmds:
+      - task: postgres:logs
+      - task: neo4j:logs
+
+  status:
+    desc: "Show status of all containers"
+    cmds:
+      - podman ps --filter name={{.POSTGRES_CONTAINER}}
+      - podman ps --filter name={{.NEO4J_CONTAINER}}
