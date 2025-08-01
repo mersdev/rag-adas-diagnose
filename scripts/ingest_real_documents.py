@@ -14,7 +14,7 @@ import hashlib
 from typing import List, Dict, Any
 
 # Set environment variables
-os.environ['database_url'] = 'postgresql://adas_user:adas_password@localhost:5434/adas_diagnostics'
+os.environ['database_url'] = 'postgresql://adas_user:adas_password@localhost:5435/adas_diagnostics'
 os.environ['neo4j_uri'] = 'bolt://localhost:7687'
 os.environ['neo4j_user'] = 'neo4j'
 os.environ['neo4j_password'] = 'adas_neo4j_password'
@@ -22,7 +22,7 @@ os.environ['neo4j_password'] = 'adas_neo4j_password'
 async def get_db_connection():
     """Get database connection."""
     return await asyncpg.connect(
-        "postgresql://adas_user:adas_password@localhost:5434/adas_diagnostics"
+        "postgresql://adas_user:adas_password@localhost:5435/adas_diagnostics"
     )
 
 def extract_vin_patterns(content: str) -> List[str]:

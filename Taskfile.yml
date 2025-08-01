@@ -11,7 +11,7 @@ vars:
   POSTGRES_DB: adas_diagnostics
   POSTGRES_USER: adas_user
   POSTGRES_PASSWORD: adas_password
-  POSTGRES_PORT: 5434
+  POSTGRES_PORT: 5435
   NEO4J_USER: neo4j
   NEO4J_PASSWORD: adas_neo4j_password
   NEO4J_PORT: 7474
@@ -256,7 +256,7 @@ tasks:
     cmds:
       - task: setup
       - echo "Installing Python dependencies..."
-      - pip install -r requirements.txt
+      - source venv/bin/activate && pip install -r requirements.txt
       - echo "Development environment ready!"
 
   dev:reset:
@@ -289,25 +289,33 @@ tasks:
   app:test:
     desc: "Run application tests"
     cmds:
-      - pytest tests/ -v
+      - |
+        if [ -n "$(find tests/ -name 'test_*.py' 2>/dev/null)" ]; then
+          source venv/bin/activate && pytest tests/ -v
+        else
+          echo "No test files found in tests/ directory. Create test_*.py files to run tests."
+          echo "Test directory structure exists but no actual tests are implemented yet."
+        fi
 
   # Ingestion Tasks
+  # Note: These commands require proper database initialization and valid API keys in .env
   ingest:file:
     desc: "Ingest a single file"
     deps: [db:wait]
     cmds:
-      - python -m ingestion.ingest process-file-cmd {{.CLI_ARGS}}
+      - source venv/bin/activate && python -m ingestion.ingest process-file-cmd {{.CLI_ARGS}}
 
   ingest:directory:
     desc: "Ingest all files in a directory"
     deps: [db:wait]
     cmds:
-      - python -m ingestion.ingest process-directory-cmd {{.CLI_ARGS}}
+      - source venv/bin/activate && python -m ingestion.ingest process-directory-cmd {{.CLI_ARGS}}
 
   ingest:sample:
     desc: "Ingest sample automotive documents"
     deps: [db:wait]
     cmds:
+      - echo "Note - Ensure .env file has correct database configuration and API keys"
       - source venv/bin/activate && python -m ingestion.ingest sample-data
 
   # Utility Tasks

@@ -19,7 +19,7 @@ from asyncpg import Pool, Connection
 from .models import (
     Document, DocumentCreate, DocumentUpdate,
     Chunk, ChunkCreate,
-    SearchResult, VectorSearchResult
+    SearchResult, VectorSearchResult, ProcessingStatus
 )
 
 logger = logging.getLogger(__name__)
@@ -138,6 +138,39 @@ class DocumentRepository:
         query = "SELECT * FROM documents WHERE id = $1"
         row = await self.db.fetch_one(query, document_id)
         return Document(**row) if row else None
+
+    async def get_document_by_path(self, file_path: str) -> Optional[Document]:
+        """Get document by file path."""
+        query = "SELECT * FROM documents WHERE file_path = $1"
+        row = await self.db.fetch_one(query, file_path)
+        return Document(**row) if row else None
+
+    async def delete_document(self, document_id: UUID) -> bool:
+        """Delete document and its associated chunks."""
+        try:
+            # Delete chunks first (due to foreign key constraint)
+            await self.db.execute("DELETE FROM chunks WHERE document_id = $1", document_id)
+
+            # Delete document
+            result = await self.db.execute("DELETE FROM documents WHERE id = $1", document_id)
+
+            # Check if any rows were affected
+            return "DELETE 1" in result
+        except Exception as e:
+            logger.error(f"Failed to delete document {document_id}: {e}")
+            return False
+
+    async def update_document_status(self, document_id: UUID, status: ProcessingStatus) -> bool:
+        """Update document processing status."""
+        try:
+            result = await self.db.execute(
+                "UPDATE documents SET processing_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+                status.value, document_id
+            )
+            return "UPDATE 1" in result
+        except Exception as e:
+            logger.error(f"Failed to update document status {document_id}: {e}")
+            return False
     
     async def update_document(self, document_id: UUID, update: DocumentUpdate) -> Optional[Document]:
         """Update document."""
@@ -232,11 +265,17 @@ class ChunkRepository:
             embedding_str, chunk.start_char, chunk.end_char, chunk.token_count,
             chunk.contains_dtc_codes, chunk.contains_version_info, chunk.contains_component_info
         )
-        
-        result = Chunk(**row)
-        if chunk.embedding:
-            result.embedding = chunk.embedding
-        return result
+
+        # Convert row to dict and handle embedding conversion
+        row_dict = dict(row)
+        if row_dict.get('embedding') and isinstance(row_dict['embedding'], str):
+            # Convert string embedding back to list
+            row_dict['embedding'] = json.loads(row_dict['embedding'])
+        elif chunk.embedding:
+            # Use the original embedding if database didn't return one
+            row_dict['embedding'] = chunk.embedding
+
+        return Chunk(**row_dict)
     
     async def get_chunks_by_document(self, document_id: UUID) -> List[Chunk]:
         """Get all chunks for a document."""

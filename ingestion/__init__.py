@@ -11,7 +11,8 @@ from .embedding_service import (
     get_embedding_manager,
     BaseEmbeddingService,
     OpenAIEmbeddingService,
-    OllamaEmbeddingService
+    OllamaEmbeddingService,
+    GeminiEmbeddingService
 )
 from .entity_extractor import (
     AutomotiveEntityExtractor,
@@ -31,6 +32,7 @@ __all__ = [
     'BaseEmbeddingService',
     'OpenAIEmbeddingService',
     'OllamaEmbeddingService',
+    'GeminiEmbeddingService',
     'AutomotiveEntityExtractor',
     'ExtractedEntity',
     'ExtractedRelationship',

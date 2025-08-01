@@ -8,7 +8,7 @@ import os
 import asyncpg
 
 # Set environment variables
-os.environ['DATABASE_URL'] = 'postgresql://adas_user:adas_password@localhost:5434/adas_diagnostics'
+os.environ['DATABASE_URL'] = 'postgresql://adas_user:adas_password@localhost:5435/adas_diagnostics'
 
 async def test_sql():
     """Test the SQL query directly."""

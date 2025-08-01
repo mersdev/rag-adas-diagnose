@@ -18,7 +18,7 @@ async def run_migration():
     if not database_url:
         print("❌ DATABASE_URL environment variable not set")
         print("Please set DATABASE_URL to your PostgreSQL connection string")
-        print("Example: postgresql://user:password@localhost:5432/database")
+        print("Example: postgresql://user:password@localhost:5435/database")
         return False
     
     try:

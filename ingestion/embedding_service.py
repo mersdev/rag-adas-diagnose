@@ -14,6 +14,7 @@ from abc import ABC, abstractmethod
 import httpx
 import openai
 from openai import AsyncOpenAI
+import google.generativeai as genai
 
 from agent.config import get_settings, EmbeddingProvider
 
@@ -217,6 +218,90 @@ class OllamaEmbeddingService(BaseEmbeddingService):
         return embeddings
 
 
+class GeminiEmbeddingService(BaseEmbeddingService):
+    """Gemini embedding service implementation."""
+
+    def __init__(self, api_key: str, model: str = "text-embedding-004"):
+        """
+        Initialize Gemini embedding service.
+
+        Args:
+            api_key: Gemini API key
+            model: Embedding model to use
+        """
+        genai.configure(api_key=api_key)
+        self.model = model
+        self.max_batch_size = 100  # Gemini batch limit
+        self.max_retries = 3
+        self.retry_delay = 1.0
+
+        # Gemini embedding model dimensions
+        self._dimensions = {
+            "text-embedding-004": 768,
+            "embedding-001": 768
+        }
+
+    @property
+    def embedding_dimension(self) -> int:
+        """Return embedding dimension for the current model."""
+        return self._dimensions.get(self.model, 768)
+
+    async def generate_embedding(self, text: str) -> List[float]:
+        """Generate embedding for a single text."""
+        embeddings = await self.generate_embeddings([text])
+        return embeddings[0]
+
+    async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for a list of texts."""
+        if not texts:
+            return []
+
+        # Process in batches to respect API limits
+        all_embeddings = []
+        for i in range(0, len(texts), self.max_batch_size):
+            batch = texts[i:i + self.max_batch_size]
+            batch_embeddings = await self._generate_batch_embeddings(batch)
+            all_embeddings.extend(batch_embeddings)
+
+        return all_embeddings
+
+    async def _generate_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for a batch of texts with retry logic."""
+        for attempt in range(self.max_retries):
+            try:
+                # Use the synchronous API in an async context
+                embeddings = []
+                for text in texts:
+                    result = genai.embed_content(
+                        model=f"models/{self.model}",
+                        content=text,
+                        task_type="retrieval_document"
+                    )
+                    # Ensure the embedding is a list of floats
+                    embedding = result['embedding']
+                    if isinstance(embedding, str):
+                        # If it's a string, try to parse it as JSON
+                        import json
+                        embedding = json.loads(embedding)
+                    elif not isinstance(embedding, list):
+                        # If it's some other type, convert to list
+                        embedding = list(embedding)
+
+                    # Ensure all elements are floats
+                    embedding = [float(x) for x in embedding]
+                    embeddings.append(embedding)
+
+                return embeddings
+
+            except Exception as e:
+                if attempt < self.max_retries - 1:
+                    wait_time = self.retry_delay * (2 ** attempt)
+                    logger.warning(f"Gemini embedding generation failed, retrying in {wait_time}s: {e}")
+                    await asyncio.sleep(wait_time)
+                else:
+                    raise EmbeddingServiceError(f"Failed to generate embeddings after {self.max_retries} attempts") from e
+
+
 class EmbeddingServiceFactory:
     """Factory for creating embedding services."""
     
@@ -239,6 +324,11 @@ class EmbeddingServiceFactory:
         elif provider == EmbeddingProvider.OLLAMA:
             return OllamaEmbeddingService(
                 base_url=base_url,
+                model=model
+            )
+        elif provider == EmbeddingProvider.GEMINI:
+            return GeminiEmbeddingService(
+                api_key=api_key,
                 model=model
             )
         else:

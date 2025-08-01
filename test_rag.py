@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Set environment variables
-os.environ['DATABASE_URL'] = 'postgresql://adas_user:adas_password@localhost:5434/adas_diagnostics'
+os.environ['DATABASE_URL'] = 'postgresql://adas_user:adas_password@localhost:5435/adas_diagnostics'
 
 # Add the project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))

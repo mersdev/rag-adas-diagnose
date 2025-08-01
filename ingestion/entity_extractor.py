@@ -230,7 +230,7 @@ class AutomotiveEntityExtractor:
                 
                 entity = ExtractedEntity(
                     name=name,
-                    entity_type=EntityType.DTC_CODE,
+                    entity_type=EntityType.DTC,
                     confidence=0.95,  # High confidence for DTC patterns
                     context=context,
                     properties=self._extract_dtc_properties(name, context),
@@ -252,7 +252,7 @@ class AutomotiveEntityExtractor:
                 
                 entity = ExtractedEntity(
                     name=name,
-                    entity_type=EntityType.VERSION,
+                    entity_type=EntityType.SOFTWARE_VERSION,
                     confidence=0.9,
                     context=context,
                     properties=self._extract_version_properties(context),

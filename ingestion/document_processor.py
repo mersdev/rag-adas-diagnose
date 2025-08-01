@@ -439,7 +439,7 @@ class AutomotiveDocumentProcessor:
             file_size=file_path.stat().st_size,
             file_hash=file_hash,
             vehicle_system=vehicle_system,
-            component_name=metadata.get('components', [None])[0] if metadata.get('components') else None,
+            component_name=metadata.get('components', [None])[0][:200] if metadata.get('components') and metadata.get('components')[0] else None,
             supplier=metadata.get('suppliers', [None])[0] if metadata.get('suppliers') else None,
             model_years=metadata.get('model_years'),
             vin_patterns=metadata.get('vin_patterns'),

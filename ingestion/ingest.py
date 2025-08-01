@@ -21,8 +21,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from agent.config import get_settings
-from agent.db_utils import get_db_manager, DocumentRepository, ChunkRepository
-from agent.graph_utils import get_graph_manager, AutomotiveGraphRepository
+from agent.db_utils import get_db_manager, initialize_database, DocumentRepository, ChunkRepository
+from agent.graph_utils import get_graph_manager, initialize_graph, AutomotiveGraphRepository
 from agent.models import (
     DocumentCreate, ChunkCreate, ProcessingStatus, 
     AutomotiveEntityCreate, EntityRelationshipCreate
@@ -67,22 +67,28 @@ class IngestionPipeline:
     async def initialize(self):
         """Initialize database and graph connections."""
         try:
-            # Initialize database
+            # Initialize database manager
+            logger.info("Initializing database connection...")
+            await initialize_database(self.settings.database.database_url)
             self.db_manager = await get_db_manager()
             self.doc_repo = DocumentRepository(self.db_manager)
             self.chunk_repo = ChunkRepository(self.db_manager)
-            
+            logger.info("Database initialized successfully")
+
             # Initialize graph database
             try:
+                logger.info("Initializing graph database connection...")
+                await initialize_graph()
                 self.graph_manager = await get_graph_manager()
                 self.graph_repo = AutomotiveGraphRepository(self.graph_manager)
                 logger.info("Graph database initialized successfully")
             except Exception as e:
                 logger.warning(f"Graph database initialization failed: {e}")
+                logger.warning("Continuing without graph database - some features may be limited")
                 self.graph_repo = None
-            
+
             logger.info("Ingestion pipeline initialized successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize ingestion pipeline: {e}")
             raise
@@ -278,14 +284,14 @@ class IngestionPipeline:
     async def process_sample_data(self):
         """Process sample automotive documents for testing."""
         logger.info("Processing sample automotive data")
-        
-        # Create sample documents directory if it doesn't exist
-        sample_dir = Path("sample_data")
-        sample_dir.mkdir(exist_ok=True)
-        
-        # Create sample documents
-        await self._create_sample_documents(sample_dir)
-        
+
+        # Use the actual sample data directory
+        sample_dir = Path("data/sample-data")
+
+        if not sample_dir.exists():
+            logger.error(f"Sample data directory not found: {sample_dir}")
+            raise FileNotFoundError(f"Sample data directory not found: {sample_dir}")
+
         # Process the sample directory
         return await self.process_directory(sample_dir)
     

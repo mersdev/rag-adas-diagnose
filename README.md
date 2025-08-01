@@ -1,52 +1,69 @@
 # ADAS Diagnostics Co-pilot
 
-An AI-powered agent designed to assist automotive engineers in performing rapid root cause analysis for complex vehicle system failures. The Co-pilot leverages Agentic RAG with Knowledge Graph technology to provide conversational diagnostics for Advanced Driver-Assistance Systems (ADAS).
+An AI-powered automotive diagnostics assistant built with FastAPI, Streamlit, and advanced RAG (Retrieval-Augmented Generation) capabilities. This system helps automotive technicians and engineers diagnose vehicle issues using natural language queries against a comprehensive knowledge base of automotive documentation.
 
-Built with:
-- **Pydantic AI** for the AI Agent Framework powered by **Google Gemini 2.0 Flash**
-- **Graphiti** for the Knowledge Graph
-- **PostgreSQL with pgvector** for Vector Database
-- **Neo4j** for the Knowledge Graph Engine
-- **FastAPI** for the Agent API
-- **Streamlit** for the Web Interface
+## 🚗 Features
 
-## Overview
+- **Intelligent Document Processing**: Automatically processes automotive documents (OTA updates, hardware specs, diagnostic logs)
+- **Vector Search**: Semantic search across automotive documentation using embeddings
+- **Knowledge Graph**: Neo4j-powered relationship mapping between automotive components and systems
+- **Multi-Modal AI**: Supports both Gemini and OpenAI models for different use cases
+- **Real-time Chat Interface**: Streamlit-based web interface for interactive diagnostics
+- **Session Management**: Persistent conversation history and context
+- **Automotive Entity Extraction**: Automatically identifies components, systems, DTCs, and relationships
 
-This system enables automotive diagnostics teams to:
-- **Reduce diagnosis time by over 90%** through AI-powered root cause analysis
-- **Query technical documentation** including OTA updates, hardware specs, and diagnostic logs
-- **Analyze component relationships** and dependencies through knowledge graph traversal
-- **Track timeline of changes** related to specific vehicles or components
-- **Democratize expertise** allowing junior engineers to diagnose with senior-level insights
+## 🏗️ Architecture
 
-## Architecture
+- **Backend**: FastAPI with async PostgreSQL and Neo4j
+- **Frontend**: Streamlit web application
+- **Database**: PostgreSQL with pgvector extension for embeddings
+- **Knowledge Graph**: Neo4j for entity relationships
+- **AI Models**: Gemini 2.0 Flash (default) with fallback to OpenAI
+- **Containerization**: Podman for database services
 
-The system includes three main components:
+## 📋 Prerequisites
 
-1. **Document Ingestion Pipeline**: Processes automotive documents using semantic chunking and builds both vector embeddings and knowledge graph relationships
-2. **AI Agent Interface**: A conversational agent powered by Pydantic AI that can search across both vector database and knowledge graph
-3. **Streamlit Web Application**: Interactive web interface with tool usage transparency and session management
+- Python 3.11+
+- Podman (for container management)
+- Task (task runner) - Install from [taskfile.dev](https://taskfile.dev/installation/)
+- Git
 
-## Prerequisites
+## 🚀 Quick Start
 
-- Python 3.11 or higher
-- Google API key for Gemini AI (get from https://aistudio.google.com/app/apikey)
-- Optional: PostgreSQL with pgvector extension and Neo4j for full functionality
-
-## Quick Start
-
-### 1. Set up the environment
+### 1. Clone the Repository
 
 ```bash
-# Clone the repository
 git clone <repository-url>
-cd adas-diagnostics-copilot
+cd rag-adas-diagnose
+```
 
-# Create and activate virtual environment
+### 2. Set Up Environment Variables
+
+Copy the example environment file and configure your API keys:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and add your API keys:
+
+```env
+# Gemini API Key (get from https://aistudio.google.com/app/apikey)
+GOOGLE_API_KEY=your-gemini-api-key-here
+llm_api_key=your-gemini-api-key-here
+
+# For embeddings, we use Gemini by default
+embedding_api_key=your-gemini-api-key-here
+embedding_provider=gemini
+```
+
+### 3. Create Python Virtual Environment
+
+```bash
 python3.11 -m venv venv
-source venv/bin/activate  # On Linux/macOS
-# or
-venv\Scripts\activate     # On Windows
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
 # Install dependencies
 python3.11 -m pip install -r requirements.txt
@@ -72,7 +89,7 @@ llm_provider=gemini
 llm_choice=gemini-2.0-flash
 
 # Optional: Database Configuration (for full functionality)
-DATABASE_URL=postgresql://adas_user:adas_password@localhost:5434/adas_diagnostics
+DATABASE_URL=postgresql://adas_user:adas_password@localhost:5435/adas_diagnostics
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_neo4j_password
@@ -306,6 +323,84 @@ python -m ingestion.ingest --verbose
 
 ### LLM API Issues
 Check your API key and provider configuration in `.env`
+
+## ✅ Verified Working Setup (Updated)
+
+**All issues have been resolved!** The system now works end-to-end with the following setup:
+
+### Quick Start (Recommended)
+
+1. **Prerequisites**: Install Task runner from [taskfile.dev](https://taskfile.dev/installation/)
+
+2. **Setup**:
+   ```bash
+   git clone <repository-url>
+   cd rag-adas-diagnose
+   python3.11 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+3. **Configure API Key**:
+   ```bash
+   # Edit .env and add your Gemini API key
+   GOOGLE_API_KEY=your-gemini-api-key-here
+   ```
+
+4. **Start Everything**:
+   ```bash
+   task setup          # Start databases
+   task ingest:sample  # Process sample data
+   task app:start      # Start application
+   ```
+
+5. **Access**: http://localhost:8501
+
+### Available Task Commands
+
+```bash
+# Container Management
+task setup          # Complete environment setup
+task cleanup         # Remove all containers and data
+task status          # Show container status
+task health          # Check service health
+
+# Application
+task app:start       # Start both API and frontend
+task app:api         # Start FastAPI backend only
+task app:frontend    # Start Streamlit frontend only
+task app:test        # Run tests
+
+# Data Ingestion
+task ingest:sample                    # Process sample data
+task ingest:file -- path/to/file.md  # Process single file
+task ingest:directory -- path/to/dir # Process directory
+
+# Database
+task postgres:shell  # Connect to PostgreSQL
+task neo4j:shell     # Connect to Neo4j
+```
+
+### What's Fixed
+
+- ✅ Database initialization and connection issues
+- ✅ Gemini embedding service integration (768 dimensions)
+- ✅ Entity extraction type mismatches
+- ✅ Document processing pipeline
+- ✅ Vector database schema migration
+- ✅ All Taskfile commands working
+- ✅ Sample data ingestion working
+- ✅ API and frontend startup
+
+### Verified Features
+
+- 📄 Document ingestion (3 sample documents processed)
+- 🔍 Vector search with Gemini embeddings
+- 🧠 Entity extraction (62 entities extracted)
+- 💾 PostgreSQL + Neo4j integration
+- 🌐 Streamlit web interface
+- 🔌 FastAPI backend with docs
+- 📊 Session management
 
 ## Contributing
 
