@@ -10,15 +10,52 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
 
-from agent.models import ToolCall, SearchResult
+from agent.models import (
+    ToolCall, SearchResult, Suggestion, NextStep, RelatedTopic,
+    DiagnosticGuidance, SafetyConsideration
+)
 
 
-def render_chat_message(role: str, content: str, timestamp: Optional[datetime] = None):
-    """Render a chat message with proper styling."""
+def render_chat_message(role: str, content: str, timestamp: Optional[datetime] = None, enhanced_data: Optional[Dict[str, Any]] = None):
+    """Render a chat message with proper styling and enhanced information."""
     with st.chat_message(role):
         st.write(content)
         if timestamp:
             st.caption(f"*{timestamp.strftime('%H:%M:%S')}*")
+
+        # Render enhanced information for assistant messages
+        if role == "assistant" and enhanced_data:
+            # Safety considerations first (most important)
+            if enhanced_data.get("safety_considerations"):
+                render_safety_considerations(enhanced_data["safety_considerations"])
+
+            # Quick actions for immediate steps
+            if enhanced_data.get("quick_actions"):
+                render_quick_actions(enhanced_data["quick_actions"])
+
+            # Diagnostic guidance if available
+            if enhanced_data.get("diagnostic_guidance"):
+                render_diagnostic_guidance(enhanced_data["diagnostic_guidance"])
+
+            # Next steps
+            if enhanced_data.get("next_steps"):
+                render_next_steps(enhanced_data["next_steps"])
+
+            # Suggestions and related information
+            if enhanced_data.get("suggestions"):
+                render_suggestions(enhanced_data["suggestions"])
+
+            # Related topics
+            if enhanced_data.get("related_topics"):
+                render_related_topics(enhanced_data["related_topics"])
+
+            # Preventive tips
+            if enhanced_data.get("preventive_tips"):
+                render_preventive_tips(enhanced_data["preventive_tips"])
+
+            # Common issues
+            if enhanced_data.get("common_issues"):
+                render_common_issues(enhanced_data["common_issues"])
 
 
 def render_tool_usage(tools_used: List[ToolCall]):
@@ -331,3 +368,293 @@ def format_diagnostic_context(context: Dict[str, Any]) -> str:
         return f"\n\n**Diagnostic Context:**\n" + "\n".join(f"- {part}" for part in context_parts)
     
     return ""
+
+
+def render_suggestions(suggestions: List[Any]):
+    """Render contextual suggestions."""
+    if not suggestions:
+        return
+
+    with st.expander("💡 Suggestions & Related Information", expanded=True):
+        # Group suggestions by category
+        categories = {}
+        for suggestion in suggestions:
+            # Handle both dict and object formats
+            if isinstance(suggestion, dict):
+                category = suggestion.get('category', 'general')
+                title = suggestion.get('title', 'Suggestion')
+                description = suggestion.get('description', '')
+                priority = suggestion.get('priority', 'medium')
+                action_type = suggestion.get('action_type', 'information')
+            else:
+                category = suggestion.category
+                title = suggestion.title
+                description = suggestion.description
+                priority = suggestion.priority
+                action_type = suggestion.action_type
+
+            if category not in categories:
+                categories[category] = []
+            categories[category].append({
+                'title': title,
+                'description': description,
+                'priority': priority,
+                'action_type': action_type
+            })
+
+        for category, items in categories.items():
+            st.subheader(f"🔍 {category.replace('_', ' ').title()}")
+
+            for suggestion in items:
+                priority_icon = "🔴" if suggestion['priority'] == "high" else "🟡" if suggestion['priority'] == "medium" else "🟢"
+
+                with st.container():
+                    col1, col2 = st.columns([0.1, 0.9])
+                    with col1:
+                        st.write(priority_icon)
+                    with col2:
+                        st.write(f"**{suggestion['title']}**")
+                        st.write(suggestion['description'])
+                        if suggestion['action_type'] != "information":
+                            st.caption(f"*Action Type: {suggestion['action_type'].replace('_', ' ').title()}*")
+
+                if suggestion != items[-1]:  # Don't add divider after last item
+                    st.divider()
+
+
+def render_next_steps(next_steps: List[Any]):
+    """Render suggested next steps."""
+    if not next_steps:
+        return
+
+    with st.expander("📋 Suggested Next Steps", expanded=True):
+        for step in next_steps:
+            # Handle both dict and object formats
+            if isinstance(step, dict):
+                step_number = step.get('step_number', 1)
+                title = step.get('title', 'Step')
+                description = step.get('description', '')
+                estimated_time = step.get('estimated_time')
+                required_tools = step.get('required_tools', [])
+                safety_notes = step.get('safety_notes', [])
+            else:
+                step_number = step.step_number
+                title = step.title
+                description = step.description
+                estimated_time = step.estimated_time
+                required_tools = step.required_tools
+                safety_notes = step.safety_notes
+
+            with st.container():
+                col1, col2 = st.columns([0.1, 0.9])
+                with col1:
+                    st.write(f"**{step_number}**")
+                with col2:
+                    st.write(f"**{title}**")
+                    st.write(description)
+
+                    if estimated_time:
+                        st.caption(f"⏱️ Estimated time: {estimated_time}")
+
+                    if required_tools:
+                        st.caption(f"🔧 Required tools: {', '.join(required_tools)}")
+
+                    if safety_notes:
+                        for note in safety_notes:
+                            st.warning(f"⚠️ Safety: {note}")
+
+                if step != next_steps[-1]:  # Don't add divider after last item
+                    st.divider()
+
+
+def render_related_topics(related_topics: List[Any]):
+    """Render related topics and components."""
+    if not related_topics:
+        return
+
+    with st.expander("🔗 Related Topics & Components", expanded=False):
+        # Group by relationship type
+        relationships = {}
+        for topic in related_topics:
+            # Handle both dict and object formats
+            if isinstance(topic, dict):
+                relationship = topic.get('relationship', 'related')
+                title = topic.get('title', 'Related Topic')
+                description = topic.get('description', '')
+                relevance_score = topic.get('relevance_score', 0.0)
+            else:
+                relationship = topic.relationship
+                title = topic.title
+                description = topic.description
+                relevance_score = topic.relevance_score
+
+            if relationship not in relationships:
+                relationships[relationship] = []
+            relationships[relationship].append({
+                'title': title,
+                'description': description,
+                'relevance_score': relevance_score
+            })
+
+        for relationship, items in relationships.items():
+            st.subheader(f"📌 {relationship.replace('_', ' ').title()}")
+
+            for topic in items:
+                with st.container():
+                    col1, col2 = st.columns([0.8, 0.2])
+                    with col1:
+                        st.write(f"**{topic['title']}**")
+                        st.write(topic['description'])
+                    with col2:
+                        if topic['relevance_score'] > 0:
+                            score_color = "green" if topic['relevance_score'] > 0.8 else "orange" if topic['relevance_score'] > 0.6 else "red"
+                            st.metric("Relevance", f"{topic['relevance_score']:.2f}")
+
+                if topic != items[-1]:  # Don't add divider after last item
+                    st.divider()
+
+
+def render_diagnostic_guidance(guidance: Any):
+    """Render diagnostic guidance with detailed procedures."""
+    if not guidance:
+        return
+
+    # Handle both dict and object formats
+    if isinstance(guidance, dict):
+        procedure_name = guidance.get('procedure_name', 'Diagnostic Procedure')
+        prerequisites = guidance.get('prerequisites', [])
+        steps = guidance.get('steps', [])
+        expected_results = guidance.get('expected_results', [])
+        troubleshooting_tips = guidance.get('troubleshooting_tips', [])
+    else:
+        procedure_name = guidance.procedure_name
+        prerequisites = guidance.prerequisites
+        steps = guidance.steps
+        expected_results = guidance.expected_results
+        troubleshooting_tips = guidance.troubleshooting_tips
+
+    with st.expander(f"🔧 Diagnostic Procedure: {procedure_name}", expanded=True):
+        if prerequisites:
+            st.subheader("📋 Prerequisites")
+            for prereq in prerequisites:
+                st.write(f"• {prereq}")
+
+        if steps:
+            st.subheader("🔄 Procedure Steps")
+            render_next_steps(steps)
+
+        if expected_results:
+            st.subheader("✅ Expected Results")
+            for result in expected_results:
+                st.success(f"✓ {result}")
+
+        if troubleshooting_tips:
+            st.subheader("💡 Troubleshooting Tips")
+            for tip in troubleshooting_tips:
+                st.info(f"💡 {tip}")
+
+
+def render_safety_considerations(safety_considerations: List[Any]):
+    """Render safety considerations with appropriate styling."""
+    if not safety_considerations:
+        return
+
+    # Group by safety level - handle both dict and object formats
+    critical_items = []
+    important_items = []
+    advisory_items = []
+
+    for item in safety_considerations:
+        # Handle both dict and object formats
+        if isinstance(item, dict):
+            level = item.get('level', 'advisory')
+            title = item.get('title', 'Safety Consideration')
+            description = item.get('description', '')
+            precautions = item.get('precautions', [])
+        else:
+            level = item.level
+            title = item.title
+            description = item.description
+            precautions = item.precautions
+
+        safety_item = {
+            'level': level,
+            'title': title,
+            'description': description,
+            'precautions': precautions
+        }
+
+        if level == "critical":
+            critical_items.append(safety_item)
+        elif level == "important":
+            important_items.append(safety_item)
+        else:
+            advisory_items.append(safety_item)
+
+    if critical_items:
+        with st.expander("🚨 Critical Safety Considerations", expanded=True):
+            for item in critical_items:
+                st.error(f"**{item['title']}**")
+                st.error(item['description'])
+                if item['precautions']:
+                    for precaution in item['precautions']:
+                        st.error(f"⚠️ {precaution}")
+                if item != critical_items[-1]:
+                    st.divider()
+
+    if important_items:
+        with st.expander("⚠️ Important Safety Considerations", expanded=True):
+            for item in important_items:
+                st.warning(f"**{item['title']}**")
+                st.warning(item['description'])
+                if item['precautions']:
+                    for precaution in item['precautions']:
+                        st.warning(f"⚠️ {precaution}")
+                if item != important_items[-1]:
+                    st.divider()
+
+    if advisory_items:
+        with st.expander("ℹ️ Safety Advisory", expanded=False):
+            for item in advisory_items:
+                st.info(f"**{item['title']}**")
+                st.info(item['description'])
+                if item['precautions']:
+                    for precaution in item['precautions']:
+                        st.info(f"ℹ️ {precaution}")
+                if item != advisory_items[-1]:
+                    st.divider()
+
+
+def render_quick_actions(quick_actions: List[str]):
+    """Render quick actions as actionable buttons or checkboxes."""
+    if not quick_actions:
+        return
+
+    with st.expander("⚡ Quick Actions", expanded=True):
+        st.write("**Immediate checks and verifications:**")
+        for i, action in enumerate(quick_actions):
+            col1, col2 = st.columns([0.1, 0.9])
+            with col1:
+                st.checkbox("", key=f"quick_action_{i}")
+            with col2:
+                st.write(action)
+
+
+def render_preventive_tips(preventive_tips: List[str]):
+    """Render preventive maintenance tips."""
+    if not preventive_tips:
+        return
+
+    with st.expander("🛡️ Preventive Maintenance Tips", expanded=False):
+        for tip in preventive_tips:
+            st.info(f"🛡️ {tip}")
+
+
+def render_common_issues(common_issues: List[str]):
+    """Render common issues related to the topic."""
+    if not common_issues:
+        return
+
+    with st.expander("⚠️ Common Issues to Watch For", expanded=False):
+        for issue in common_issues:
+            st.warning(f"⚠️ {issue}")

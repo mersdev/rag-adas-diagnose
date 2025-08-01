@@ -315,10 +315,25 @@ def main():
 
     # Display chat messages
     for message in st.session_state.messages:
+        # Prepare enhanced data for assistant messages
+        enhanced_data = None
+        if message["role"] == "assistant":
+            enhanced_data = {
+                "suggestions": message.get("suggestions", []),
+                "next_steps": message.get("next_steps", []),
+                "related_topics": message.get("related_topics", []),
+                "diagnostic_guidance": message.get("diagnostic_guidance"),
+                "safety_considerations": message.get("safety_considerations", []),
+                "quick_actions": message.get("quick_actions", []),
+                "preventive_tips": message.get("preventive_tips", []),
+                "common_issues": message.get("common_issues", [])
+            }
+
         render_chat_message(
             message["role"],
             message["content"],
-            message.get("timestamp")
+            message.get("timestamp"),
+            enhanced_data
         )
 
         # Show tool usage and sources for assistant messages
@@ -349,7 +364,16 @@ def main():
                     "content": response.get("message", "Sorry, I couldn't process your request."),
                     "timestamp": datetime.now(),
                     "tools_used": response.get("tools_used", []),
-                    "sources": response.get("sources", [])
+                    "sources": response.get("sources", []),
+                    # Enhanced proactive information
+                    "suggestions": response.get("suggestions", []),
+                    "next_steps": response.get("next_steps", []),
+                    "related_topics": response.get("related_topics", []),
+                    "diagnostic_guidance": response.get("diagnostic_guidance"),
+                    "safety_considerations": response.get("safety_considerations", []),
+                    "quick_actions": response.get("quick_actions", []),
+                    "preventive_tips": response.get("preventive_tips", []),
+                    "common_issues": response.get("common_issues", [])
                 }
                 st.session_state.messages.append(assistant_message)
                 st.rerun()

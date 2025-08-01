@@ -302,6 +302,61 @@ class DiagnosticCode(UUIDModel, TimestampedModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# Enhanced Response Models
+class Suggestion(BaseModel):
+    """Model for contextual suggestions."""
+    title: str
+    description: str
+    category: str  # "diagnostic", "maintenance", "safety", "related_component"
+    priority: str = "medium"  # "high", "medium", "low"
+    action_type: str = "information"  # "information", "diagnostic", "maintenance", "safety_check"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NextStep(BaseModel):
+    """Model for suggested next steps."""
+    step_number: int
+    title: str
+    description: str
+    estimated_time: Optional[str] = None
+    required_tools: List[str] = []
+    safety_notes: List[str] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RelatedTopic(BaseModel):
+    """Model for related topics and components."""
+    title: str
+    description: str
+    relationship: str  # "related_component", "dependent_system", "common_issue", "preventive_measure"
+    relevance_score: float = 0.0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DiagnosticGuidance(BaseModel):
+    """Model for diagnostic guidance information."""
+    procedure_name: str
+    steps: List[NextStep]
+    prerequisites: List[str] = []
+    expected_results: List[str] = []
+    troubleshooting_tips: List[str] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SafetyConsideration(BaseModel):
+    """Model for safety considerations."""
+    level: str  # "critical", "important", "advisory"
+    title: str
+    description: str
+    precautions: List[str] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # Tool and Agent Models
 class ToolCall(BaseModel):
     """Model for tracking agent tool usage."""
@@ -331,12 +386,24 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Chat response model."""
+    """Enhanced chat response model with proactive information."""
     message: str
     session_id: Optional[str] = None
     tools_used: List[ToolCall] = []
     sources: List[SearchResult] = []
     processing_time: Optional[float] = None
+
+    # Enhanced proactive information
+    suggestions: List[Suggestion] = []
+    next_steps: List[NextStep] = []
+    related_topics: List[RelatedTopic] = []
+    diagnostic_guidance: Optional[DiagnosticGuidance] = None
+    safety_considerations: List[SafetyConsideration] = []
+
+    # Quick actions and contextual information
+    quick_actions: List[str] = []
+    preventive_tips: List[str] = []
+    common_issues: List[str] = []
 
     model_config = ConfigDict(
         from_attributes=True,

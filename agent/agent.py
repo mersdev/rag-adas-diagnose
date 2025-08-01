@@ -16,7 +16,8 @@ from pydantic_ai import Agent, RunContext
 
 from .config import get_settings
 from .models import (
-    ChatRequest, ChatResponse, ToolCall
+    ChatRequest, ChatResponse, ToolCall, Suggestion, NextStep,
+    RelatedTopic, DiagnosticGuidance, SafetyConsideration
 )
 from .db_utils import get_db_manager
 from .tools import AutomotiveTools, TimelineQuery, DependencyQuery, HybridSearchQuery
@@ -74,7 +75,7 @@ class ADASAgent:
         """Get system prompt for the agent."""
         return """You are an AI-powered ADAS (Advanced Driver-Assistance Systems) Diagnostics Co-pilot specialized in Mercedes-Benz E-Class vehicles.
 
-Your role is to assist automotive engineers and technicians by providing immediate, actionable guidance for Mercedes-Benz E-Class diagnostics and problem-solving. You have access to comprehensive Mercedes-Benz E-Class documentation including:
+Your role is to assist automotive engineers and technicians by providing comprehensive, proactive guidance for Mercedes-Benz E-Class diagnostics and problem-solving. You have access to comprehensive Mercedes-Benz E-Class documentation including:
 
 - OTA (Over-The-Air) update release notes
 - Hardware specifications and datasheets
@@ -83,7 +84,7 @@ Your role is to assist automotive engineers and technicians by providing immedia
 - Technician repair notes
 - Supplier documentation
 
-**Your capabilities include:**
+**Your enhanced capabilities include:**
 
 1. **Timeline Analysis**: Track chronological events, software updates, and component changes for specific vehicles or systems
 2. **Dependency Mapping**: Analyze component relationships, supplier dependencies, and system interactions
@@ -105,42 +106,58 @@ Your role is to assist automotive engineers and technicians by providing immedia
 - COMAND/MBUX infotainment system
 - Mercedes me connect telematics
 
-**Your Approach:**
+**Your Proactive Approach:**
 
 1. **ALWAYS search the knowledge base FIRST** - For any automotive-related question, you MUST use the hybrid_search tool to search the knowledge base before providing an answer
-2. **Base answers on retrieved documents** - Use the search results to provide accurate, document-backed responses
-3. **Focus on problem-solving** - Emphasize solutions, next steps, and diagnostic procedures from the retrieved documentation
-4. **Ask for specific information only when needed** - If additional details would significantly improve your assistance, ask targeted questions
-5. **Be conversational and helpful** - Maintain a professional but approachable tone
+2. **Provide comprehensive, proactive responses** - Instead of asking users for more information, provide rich, detailed responses that anticipate their needs
+3. **Include contextual suggestions** - Always suggest related topics, preventive measures, and next steps
+4. **Offer diagnostic guidance** - Provide step-by-step procedures and troubleshooting tips
+5. **Highlight safety considerations** - Include relevant safety warnings and precautions
+6. **Suggest related components** - Mention connected systems and components that might be affected
 
-**When additional information would help:**
+**Proactive Information to Include:**
 
-- **VIN**: Ask only when vehicle-specific recalls, TSBs, or configuration details are relevant to the problem
-- **Specific symptoms**: Request details when general descriptions could apply to multiple issues
-- **Timeline**: Ask about timing only when it's crucial for diagnosis (e.g., recent updates, intermittent issues)
+- **Related Topics**: Suggest connected systems, components, or procedures
+- **Next Steps**: Provide clear diagnostic or maintenance steps
+- **Preventive Tips**: Include maintenance recommendations to prevent issues
+- **Common Issues**: Mention typical problems associated with discussed components
+- **Safety Considerations**: Highlight any safety-critical aspects
+- **Quick Actions**: Suggest immediate checks or verifications
 
-**Guidelines:**
+**Enhanced Response Guidelines:**
 
-- Provide immediate, actionable diagnostic insights
+- Provide immediate, comprehensive diagnostic insights with contextual information
 - Reference relevant documentation and sources when available
-- Explain your reasoning process clearly
-- Prioritize safety-critical issues
-- Consider both hardware and software factors
-- Suggest practical next steps and verification procedures
+- Explain your reasoning process clearly and include related considerations
+- Prioritize safety-critical issues and highlight safety considerations
+- Consider both hardware and software factors, including connected systems
+- Suggest practical next steps, verification procedures, and preventive measures
 - Be transparent about which tools you're using and why
+- Proactively suggest related topics and potential follow-up actions
 
-**Problem-Solving Process:**
+**Enhanced Problem-Solving Process:**
 
 1. **MANDATORY**: Use hybrid_search to search the knowledge base for relevant information about the user's question
-2. Analyze the retrieved documents and extract relevant information
-3. Provide answers based on the search results, citing specific documents when possible
-4. Offer specific diagnostic steps or solutions from the retrieved documentation
-5. Suggest next actions and verification procedures based on the knowledge base
-6. Ask for additional information only if it would significantly improve your assistance
+2. Analyze the retrieved documents and extract comprehensive information
+3. Provide detailed answers based on the search results, citing specific documents
+4. Include proactive suggestions for related topics and components
+5. Offer specific diagnostic steps or solutions with safety considerations
+6. Suggest preventive maintenance tips and common issue awareness
+7. Provide quick actions and immediate verification steps
+8. Anticipate follow-up questions and provide contextual information
 
-**CRITICAL**: You must ALWAYS search the knowledge base using hybrid_search before answering automotive questions. Do not rely on general knowledge when specific documentation is available.
+**Response Structure - Always Include:**
+- Main answer based on knowledge base search
+- Related topics and connected systems
+- Suggested next steps or diagnostic procedures
+- Preventive maintenance tips when relevant
+- Safety considerations if applicable
+- Quick actions for immediate verification
+- Common issues associated with the topic
 
-You should be helpful, knowledgeable, and focused on getting users to a solution quickly. When users describe problems, acknowledge their situation and provide actionable advice rather than immediately requesting more information."""
+**CRITICAL**: You must ALWAYS search the knowledge base using hybrid_search before answering automotive questions. Provide comprehensive, proactive responses that anticipate user needs rather than asking for more information unless absolutely critical for safety or accuracy.
+
+You should be helpful, knowledgeable, and focused on providing rich, contextual information that guides users through complete diagnostic and maintenance processes."""
     
     def _register_tools(self):
         """Register automotive diagnostic tools with the agent."""
@@ -275,6 +292,133 @@ You should be helpful, knowledgeable, and focused on getting users to a solution
         except Exception as e:
             logger.error(f"Failed to initialize ADAS Agent: {e}")
             raise
+
+    def _generate_proactive_information(self, message: str, sources: List[Any]) -> Dict[str, Any]:
+        """Generate proactive information based on the message and sources."""
+        suggestions = []
+        next_steps = []
+        related_topics = []
+        safety_considerations = []
+        quick_actions = []
+        preventive_tips = []
+        common_issues = []
+
+        # Analyze message content for keywords and context
+        message_lower = message.lower()
+
+        # Generate suggestions based on content
+        if any(keyword in message_lower for keyword in ["brake", "braking", "abs", "esp"]):
+            suggestions.extend([
+                Suggestion(
+                    title="Check Brake Fluid Level",
+                    description="Verify brake fluid level and condition as part of brake system diagnosis",
+                    category="diagnostic",
+                    priority="high",
+                    action_type="diagnostic"
+                ),
+                Suggestion(
+                    title="Inspect Brake Pads",
+                    description="Visual inspection of brake pad thickness and wear patterns",
+                    category="maintenance",
+                    priority="medium",
+                    action_type="maintenance"
+                )
+            ])
+
+            next_steps.extend([
+                NextStep(
+                    step_number=1,
+                    title="Visual Inspection",
+                    description="Perform visual inspection of brake components",
+                    estimated_time="10-15 minutes",
+                    required_tools=["Flashlight", "Jack", "Jack stands"],
+                    safety_notes=["Ensure vehicle is on level ground", "Use proper jack points"]
+                ),
+                NextStep(
+                    step_number=2,
+                    title="Brake Fluid Check",
+                    description="Check brake fluid level and color",
+                    estimated_time="5 minutes",
+                    required_tools=["Clean cloth"],
+                    safety_notes=["Do not contaminate brake fluid"]
+                )
+            ])
+
+            safety_considerations.append(
+                SafetyConsideration(
+                    level="critical",
+                    title="Brake System Safety",
+                    description="Brake system issues can affect vehicle safety",
+                    precautions=["Test brakes in safe environment", "Do not drive with brake warnings"]
+                )
+            )
+
+            quick_actions.extend([
+                "Check brake warning lights on dashboard",
+                "Test brake pedal feel and travel",
+                "Listen for unusual brake noises"
+            ])
+
+            preventive_tips.extend([
+                "Replace brake fluid every 2-3 years",
+                "Inspect brake pads every 12,000 miles",
+                "Avoid hard braking when possible"
+            ])
+
+            common_issues.extend([
+                "Brake pad wear causing squealing",
+                "Brake fluid contamination",
+                "ABS sensor malfunction"
+            ])
+
+        if any(keyword in message_lower for keyword in ["adas", "camera", "lane", "assist", "distronic"]):
+            suggestions.extend([
+                Suggestion(
+                    title="Camera Calibration Check",
+                    description="ADAS cameras may need recalibration after windshield replacement or alignment",
+                    category="diagnostic",
+                    priority="high",
+                    action_type="diagnostic"
+                ),
+                Suggestion(
+                    title="Software Version Check",
+                    description="Verify ADAS software is up to date",
+                    category="maintenance",
+                    priority="medium",
+                    action_type="diagnostic"
+                )
+            ])
+
+            safety_considerations.append(
+                SafetyConsideration(
+                    level="important",
+                    title="ADAS Limitations",
+                    description="ADAS systems are driver assistance only, not autonomous driving",
+                    precautions=["Always maintain attention while driving", "Understand system limitations"]
+                )
+            )
+
+        # Generate related topics based on sources
+        for source in sources[:3]:  # Limit to top 3 sources
+            if hasattr(source, 'component_name') and source.component_name:
+                related_topics.append(
+                    RelatedTopic(
+                        title=f"Related: {source.component_name}",
+                        description=f"Component related to your query from {source.document_filename}",
+                        relationship="related_component",
+                        relevance_score=getattr(source, 'score', 0.0)
+                    )
+                )
+
+        return {
+            "suggestions": suggestions,
+            "next_steps": next_steps,
+            "related_topics": related_topics,
+            "safety_considerations": safety_considerations,
+            "quick_actions": quick_actions,
+            "preventive_tips": preventive_tips,
+            "common_issues": common_issues
+        }
     
     async def chat(self, request: ChatRequest) -> ChatResponse:
         """Process a chat request and return response."""
@@ -313,11 +457,21 @@ You should be helpful, knowledgeable, and focused on getting users to a solution
                                 # Already a SearchResult object
                                 sources.append(result_data)
 
+            # Generate proactive information
+            proactive_info = self._generate_proactive_information(request.message, sources)
+
             return ChatResponse(
                 message=result.data,
                 tools_used=context.tools_used,
                 sources=sources,
-                processing_time=processing_time
+                processing_time=processing_time,
+                suggestions=proactive_info["suggestions"],
+                next_steps=proactive_info["next_steps"],
+                related_topics=proactive_info["related_topics"],
+                safety_considerations=proactive_info["safety_considerations"],
+                quick_actions=proactive_info["quick_actions"],
+                preventive_tips=proactive_info["preventive_tips"],
+                common_issues=proactive_info["common_issues"]
             )
             
         except Exception as e:
